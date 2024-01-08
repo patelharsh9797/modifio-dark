@@ -79,7 +79,8 @@ export default function Dropzone() {
   const [is_done, setIsDone] = useState<boolean>(false);
   const ffmpegRef = useRef<any>(null);
   const [defaultValues, setDefaultValues] = useState<string>("video");
-  const [selcted, setSelected] = useState<string>("...");
+  const [selcted, setSelected] = useState<string>("");
+  const [totalConverted, setTotalConverted] = useState<number>(0);
   const accepted_files = {
     "image/*": [
       ".jpg",
@@ -105,12 +106,11 @@ export default function Dropzone() {
     setFiles([]);
     setIsReady(false);
     setIsConverting(false);
+    setSelected("");
+    setTotalConverted(0);
   };
-  const downloadAll = (): void => {
-    // for (let action of actions) {
-    //   !action.is_error && download(action);
-    // }
 
+  const downloadAll = (): void => {
     const zip = new JSZip();
 
     // Assuming actions is an array of Action objects
@@ -120,7 +120,6 @@ export default function Dropzone() {
         // For example, you can use fetch or another method to get the content of the file
         // Replace the following line with appropriate code based on your scenario
         const fileContent = getFileContent(action.url);
-        console.log(action.url);
         // Add the file to the zip archive
         zip.file(action.output, fileContent);
       }
@@ -169,8 +168,8 @@ export default function Dropzone() {
     let tmp_actions = actions.map((elt) => ({
       ...elt,
       is_converting: true,
-      to: selcted,
     }));
+
     setActions(tmp_actions);
     setIsConverting(true);
 
@@ -190,6 +189,7 @@ export default function Dropzone() {
         );
         setActions(tmp_actions);
       } catch (err) {
+        console.error(err);
         tmp_actions = tmp_actions.map((elt) =>
           elt === action
             ? {
@@ -202,6 +202,9 @@ export default function Dropzone() {
         );
         setActions(tmp_actions);
       }
+
+      let sus_converted = tmp_actions.filter((action) => action.is_converted);
+      setTotalConverted(sus_converted.length);
     }
     setIsDone(true);
     setIsConverting(false);
@@ -263,6 +266,8 @@ export default function Dropzone() {
       setFiles([]);
       setIsReady(false);
       setIsConverting(false);
+      setSelected("");
+      setTotalConverted(0);
     } else checkIsReady();
   }, [actions]);
 
@@ -280,7 +285,10 @@ export default function Dropzone() {
   if (actions.length) {
     return (
       <div className="space-y-6">
-        <div className="flex w-full justify-end">
+        <div className="flex w-full justify-end items-baseline gap-8 ">
+          <p className="font-semibold text-md">
+            {totalConverted} / {actions.length}
+          </p>
           {is_done ? (
             <div className="space-y-4 w-fit">
               <Button
@@ -301,20 +309,40 @@ export default function Dropzone() {
               </Button>
             </div>
           ) : (
-            <Button
-              size="lg"
-              disabled={is_ready || is_converting}
-              className="rounded-xl font-semibold relative py-4 text-md flex items-center w-44"
-              onClick={convert}
-            >
-              {is_converting ? (
-                <span className="animate-spin text-lg">
-                  <ImSpinner3 />
-                </span>
-              ) : (
-                <span>Convert Now</span>
+            <>
+              {selcted && actions.length > 1 && (
+                <Button
+                  disabled={is_converting}
+                  size="lg"
+                  variant={"secondary"}
+                  className="rounded-xl font-semibold relative py-4 text-md flex items-center w-44"
+                  onClick={() => {
+                    let tmp_actions = actions.map((elt) => ({
+                      ...elt,
+                      to: selcted,
+                    }));
+
+                    setActions(tmp_actions);
+                  }}
+                >
+                  <span>Set All to {selcted}</span>
+                </Button>
               )}
-            </Button>
+              <Button
+                size="lg"
+                disabled={!is_ready || is_converting}
+                className="rounded-xl font-semibold relative py-4 text-md flex items-center w-44"
+                onClick={convert}
+              >
+                {is_converting ? (
+                  <span className="animate-spin text-lg">
+                    <ImSpinner3 />
+                  </span>
+                ) : (
+                  <span>Convert Now</span>
+                )}
+              </Button>
+            </>
           )}
         </div>
         {actions.map((action: Action, i: any) => (
@@ -369,7 +397,7 @@ export default function Dropzone() {
                     setSelected(value);
                     updateAction(action.file_name, value);
                   }}
-                  value={selcted}
+                  value={action.to as string}
                 >
                   <SelectTrigger className="w-32 outline-none focus:outline-none focus:ring-0 text-center text-gray-600 bg-gray-50 text-md font-medium">
                     <SelectValue placeholder="..." />
