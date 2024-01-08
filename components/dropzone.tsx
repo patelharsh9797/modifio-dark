@@ -1,6 +1,7 @@
 "use client";
 
 // imports
+import JSZip from "jszip";
 import { FiUploadCloud } from "react-icons/fi";
 import { LuFileSymlink } from "react-icons/lu";
 import { MdClose } from "react-icons/md";
@@ -106,10 +107,51 @@ export default function Dropzone() {
     setIsConverting(false);
   };
   const downloadAll = (): void => {
+    // for (let action of actions) {
+    //   !action.is_error && download(action);
+    // }
+
+    const zip = new JSZip();
+
+    // Assuming actions is an array of Action objects
     for (let action of actions) {
-      !action.is_error && download(action);
+      if (!action.is_error) {
+        // Fetch the file content (you may need to adjust this part based on your actual use case)
+        // For example, you can use fetch or another method to get the content of the file
+        // Replace the following line with appropriate code based on your scenario
+        const fileContent = getFileContent(action.url);
+        console.log(action.url);
+        // Add the file to the zip archive
+        zip.file(action.output, fileContent);
+      }
     }
+
+    // Generate the zip file
+    zip.generateAsync({ type: "blob" }).then((blob) => {
+      // Create a download link for the zip file
+      const a = document.createElement("a");
+      a.style.display = "none";
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = `modified_${selcted}.zip`;
+
+      document.body.appendChild(a);
+
+      // Trigger the download
+      a.click();
+
+      // Clean up after download
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    });
   };
+
+  const getFileContent = async (url: string): Promise<ArrayBuffer> => {
+    const response = await fetch(url);
+    const data = await response.arrayBuffer();
+    return data;
+  };
+
   const download = (action: Action) => {
     const a = document.createElement("a");
     a.style.display = "none";
@@ -127,9 +169,11 @@ export default function Dropzone() {
     let tmp_actions = actions.map((elt) => ({
       ...elt,
       is_converting: true,
+      to: selcted,
     }));
     setActions(tmp_actions);
     setIsConverting(true);
+
     for (let action of tmp_actions) {
       try {
         const { url, output } = await convertFile(ffmpegRef.current, action);
@@ -181,14 +225,15 @@ export default function Dropzone() {
       });
     });
     setActions(tmp);
+    setIsReady(true);
   };
+
   const handleHover = (): void => setIsHover(true);
   const handleExitHover = (): void => setIsHover(false);
   const updateAction = (file_name: String, to: String) => {
     setActions(
       actions.map((action): Action => {
         if (action.file_name === file_name) {
-          console.log("FOUND");
           return {
             ...action,
             to,
@@ -199,6 +244,7 @@ export default function Dropzone() {
       })
     );
   };
+
   const checkIsReady = (): void => {
     let tmp_is_ready = true;
     actions.forEach((action: Action) => {
@@ -206,6 +252,7 @@ export default function Dropzone() {
     });
     setIsReady(tmp_is_ready);
   };
+
   const deleteAction = (action: Action): void => {
     setActions(actions.filter((elt) => elt !== action));
     setFiles(files.filter((elt) => elt.name !== action.file_name));
@@ -218,9 +265,11 @@ export default function Dropzone() {
       setIsConverting(false);
     } else checkIsReady();
   }, [actions]);
+
   useEffect(() => {
     load();
   }, []);
+
   const load = async () => {
     const ffmpeg_response: FFmpeg = await loadFfmpeg();
     ffmpegRef.current = ffmpeg_response;
@@ -231,6 +280,43 @@ export default function Dropzone() {
   if (actions.length) {
     return (
       <div className="space-y-6">
+        <div className="flex w-full justify-end">
+          {is_done ? (
+            <div className="space-y-4 w-fit">
+              <Button
+                size="lg"
+                className="rounded-xl font-semibold relative py-4 text-md flex gap-2 items-center w-full"
+                onClick={downloadAll}
+              >
+                {actions.length > 1 ? "Download All" : "Download"}
+                <HiOutlineDownload />
+              </Button>
+              <Button
+                size="lg"
+                onClick={reset}
+                variant="outline"
+                className="rounded-xl"
+              >
+                Convert Another File(s)
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="lg"
+              disabled={is_ready || is_converting}
+              className="rounded-xl font-semibold relative py-4 text-md flex items-center w-44"
+              onClick={convert}
+            >
+              {is_converting ? (
+                <span className="animate-spin text-lg">
+                  <ImSpinner3 />
+                </span>
+              ) : (
+                <span>Convert Now</span>
+              )}
+            </Button>
+          )}
+        </div>
         {actions.map((action: Action, i: any) => (
           <div
             key={i}
@@ -364,43 +450,6 @@ export default function Dropzone() {
             )}
           </div>
         ))}
-        <div className="flex w-full justify-end">
-          {is_done ? (
-            <div className="space-y-4 w-fit">
-              <Button
-                size="lg"
-                className="rounded-xl font-semibold relative py-4 text-md flex gap-2 items-center w-full"
-                onClick={downloadAll}
-              >
-                {actions.length > 1 ? "Download All" : "Download"}
-                <HiOutlineDownload />
-              </Button>
-              <Button
-                size="lg"
-                onClick={reset}
-                variant="outline"
-                className="rounded-xl"
-              >
-                Convert Another File(s)
-              </Button>
-            </div>
-          ) : (
-            <Button
-              size="lg"
-              disabled={!is_ready || is_converting}
-              className="rounded-xl font-semibold relative py-4 text-md flex items-center w-44"
-              onClick={convert}
-            >
-              {is_converting ? (
-                <span className="animate-spin text-lg">
-                  <ImSpinner3 />
-                </span>
-              ) : (
-                <span>Convert Now</span>
-              )}
-            </Button>
-          )}
-        </div>
       </div>
     );
   }
